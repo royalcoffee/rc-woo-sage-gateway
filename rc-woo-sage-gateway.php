@@ -25,7 +25,7 @@ function woocommerce_sage_gateway_init() {
   }
 
   // Sage Payment Gateway
-  class WC_Sage_Gateway extends WC_Payment_Gateway{
+  class WC_Sage_Gateway extends WC_Payment_Gateway_CC {
     // global id for payment method
     public $id;
     // title shown on the top of the payment gateways gage
@@ -135,7 +135,7 @@ function woocommerce_sage_gateway_init() {
          return;
        }
 
-       // set freiht info
+       // set freight info
        $freight_info = array();
        $freight_info['warehouse'] = ( isset( $_POST['warehouse'] ) ? wc_clean( $_POST['warehouse'] ) : $_SESSION['rc_ship_from_warehouse'] );
        $freight_info['comment']   = ( isset( $_POST['order_comments'] ) ? wc_clean( $_POST['order_comments'] ) : '' );
@@ -232,7 +232,7 @@ function woocommerce_sage_gateway_init() {
 
       // process payment
       $transaction = SageHandler::process_payment( $ship_to_code, $freight_info, $credit_card_info, $cart_items );
-if( function_exists('kickout') ) kickout( 'transaction', $transaction );
+
 		  if ($transaction === false || SageHandler_Error::is_error( $transaction ) ) {
 	      // error happened - order not processed
         if ( SageHandler_Error::is_error( $transaction ) ) {
