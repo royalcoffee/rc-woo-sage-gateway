@@ -17,6 +17,13 @@ function woocommerce_sage_gateway_init() {
   // localisation
 	load_plugin_textdomain( 'wc-sage-gateway', false, dirname( plugin_basename( __FILE__ ) ) . '/languages' );
 
+  // show Credit Card Logos on form
+  add_action( 'woocommerce_credit_card_form_start', function( $gateway_id ){
+
+  	echo do_shortcode( '[woocommerce_accepted_payment_methods]' );
+
+  } );
+
   // add Sage Gateway to WooCommerce
   add_filter( 'woocommerce_payment_gateways', 'woocommerce_add_sage_gateway' );
   function woocommerce_add_sage_gateway( $methods ) {
@@ -135,22 +142,47 @@ function woocommerce_sage_gateway_init() {
          return;
        }
 
+
        // set freight info
        $freight_info = array();
        $freight_info['warehouse'] = ( isset( $_POST['warehouse'] ) ? wc_clean( $_POST['warehouse'] ) : $_SESSION['rc_ship_from_warehouse'] );
        $freight_info['comment']   = ( isset( $_POST['order_comments'] ) ? wc_clean( $_POST['order_comments'] ) : '' );
+       $freight_info['carrier'] = null;
 
-       // check that freight information is set in the session
-       if ( isset( $_SESSION['rc_freight'] ) ) {
-         $freight_info['shipping_cost'] = ( array_key_exists( 'shipping_cost', $_SESSION['rc_freight'] ) ? $_SESSION['rc_freight']['shipping_cost'] : null );
-         $freight_info['quote_number'] = ( array_key_exists( 'quote_number', $_SESSION['rc_freight'] ) ? $_SESSION['rc_freight']['quote_number'] : null );
-         $freight_info['shipment_id'] = ( array_key_exists( 'shipment_id', $_SESSION['rc_freight'] ) ? $_SESSION['rc_freight']['shipment_id'] : null );
-         $freight_info['carrier'] = ( array_key_exists( 'carrier', $_SESSION['rc_freight'] ) ? $_SESSION['rc_freight']['carrier'] : null );
-         $freight_info['destination_lift_gate'] = ( array_key_exists( 'destination_lift_gate', $_SESSION['rc_freight'] ) ? $_SESSION['rc_freight']['destination_lift_gate'] : null );
-         $freight_info['delivery_appointment'] = ( array_key_exists( 'delivery_appointment', $_SESSION['rc_freight'] ) ? $_SESSION['rc_freight']['delivery_appointment'] : null );
-         $freight_info['residential_delivery'] = ( array_key_exists( 'residential_delivery', $_SESSION['rc_freight'] ) ? $_SESSION['rc_freight']['residential_delivery'] : null );
-         $freight_info['inside_delivery'] = ( array_key_exists( 'inside_delivery', $_SESSION['rc_freight'] ) ? $_SESSION['rc_freight']['inside_delivery'] : null );
-       }
+	   foreach( $customer_order->get_shipping_methods() as $shipping_method ) :
+
+	   		switch ( substr( $shipping_method['method_id'], 0, 3) ){
+
+	   			case 'hol' :
+	   			case 'wil' :
+	   			case 'fre' :
+				   // check that freight information is set in the session
+				   if ( isset( $_SESSION['rc_freight'] ) ) {
+					 $freight_info['ship_status'] = 'Y';
+					 $freight_info['freight']['shipping_cost'] = ( array_key_exists( 'freight_amount', $_SESSION['rc_freight'] ) ? $_SESSION['rc_freight']['freight_amount'] : null );
+					 $freight_info['freight']['quote_number'] = ( array_key_exists( 'quote_number', $_SESSION['rc_freight'] ) ? $_SESSION['rc_freight']['quote_number'] : null );
+					 $freight_info['freight']['shipment_id'] = ( array_key_exists( 'shipment_id', $_SESSION['rc_freight'] ) ? $_SESSION['rc_freight']['shipment_id'] : null );
+					 $freight_info['freight']['carrier'] = ( array_key_exists( 'freight_carrier', $_SESSION['rc_freight'] ) ? $_SESSION['rc_freight']['freight_carrier'] : null );
+					 $freight_info['freight']['destination_lift_gate'] = ( array_key_exists( 'destination_lift_gate', $_SESSION['rc_freight'] ) ? $_SESSION['rc_freight']['destination_lift_gate'] : null );
+					 $freight_info['freight']['delivery_appointment'] = ( array_key_exists( 'delivery_appointment', $_SESSION['rc_freight'] ) ? $_SESSION['rc_freight']['delivery_appointment'] : null );
+					 $freight_info['freight']['residential_delivery'] = ( array_key_exists( 'residential_delivery', $_SESSION['rc_freight'] ) ? $_SESSION['rc_freight']['residential_delivery'] : null );
+					 $freight_info['freight']['inside_delivery'] = ( array_key_exists( 'inside_delivery', $_SESSION['rc_freight'] ) ? $_SESSION['rc_freight']['inside_delivery'] : null );
+				   }
+	   				break;
+
+	   			case 'ups' :
+	   				$freight_info['ups']['service'] = $shipping_method['name'];
+	   				$freight_info['ups']['shipping_cost'] = $shipping_method['cost'];
+	   				$freight_info['ship_status'] = 'Y';
+	   				break;
+
+	   		}
+
+
+	   endforeach;
+
+
+if( function_exists('kickout') ) kickout( 'process_payment', $_SESSION['rc_freight'], $customer_order, $freight_info, $customer_order->get_shipping_methods(), $_POST );
 
       /*************************************************************************
        * credit card info
@@ -213,14 +245,14 @@ function woocommerce_sage_gateway_init() {
       $extract_cart_items = true;
       foreach ( $woocommerce->cart->get_cart() as $item ) {
         // get item code
-        $item_code = get_post_meta( $item['product_id'], '_sku', TRUE );
+        $item_code = get_post_meta( $item['product_id'], '_sage_sku', TRUE );
         if ( $item_code === false ) {
           // invalid item code
           $extract_cart_items = false;
         }
         // add cart item
         $cart_items[] = array(
-          'item_code' => get_post_meta( $item['product_id'], '_sku', TRUE ),
+          'item_code' => get_post_meta( $item['product_id'], '_sage_sku', TRUE ),
           'quantity'  => $item['quantity']
         );
       }
@@ -242,7 +274,7 @@ function woocommerce_sage_gateway_init() {
             // sold out
             foreach ( $error_data as $item_code ) {
               // TODO look up item name
-              wc_add_notice( sprintf( 'Sorry we are sold out of %s.', self::get_product_title_by_sku( $item_code ) ), 'error' );
+              wc_add_notice( sprintf( 'Sorry we are sold out of %s.', self::get_product_title_by_sage_sku( $item_code ) ), 'error' );
             }
           } else {
             foreach ( $transaction->get_errors() as $error ) {
@@ -271,22 +303,25 @@ function woocommerce_sage_gateway_init() {
           $customer_order->add_order_note( __( 'Partial Order, uncaught error.', 'wc-sage-gateway' ) );
         }
       } else {
-        // successfull transaction
-        $customer_order->add_order_note( __( sprintf( 'Sage payment completed.  Sales order number: %s', $payment_processed['sales_order_no'] ), 'wc-sage-gateway' ) );
+        // successful transaction
+        $customer_order->add_order_note( __( sprintf( 'Sage payment completed.  Sales order number: %s', $transaction['sales_order_no'] ), 'wc-sage-gateway' ) );
+
       }
 
       // mark order as paid
 			$customer_order->payment_complete();
+		unset( $_SESSION['rc_freight'] );
+		unset( $_SESSION['rc_freight_options'] );
 
       // redirect to thank you page
       return array( 'result' => 'success', 'redirect' => $this->get_return_url( $customer_order ) );
     }
 
     // get product title given a sku number
-    public static function get_product_title_by_sku( $sku ) {
+    public static function get_product_title_by_sage_sku( $sku ) {
       global $wpdb;
 
-      $post_title = $wpdb->get_var( $wpdb->prepare( "SELECT `b`.`post_title` FROM " . $wpdb->postmeta . " as `a` INNER JOIN " . $wpdb->posts . " as b ON a.post_id = b.ID WHERE a.meta_key = '_sku' AND a.meta_value = '%s'", $sku ) );
+      $post_title = $wpdb->get_var( $wpdb->prepare( "SELECT `b`.`post_title` FROM " . $wpdb->postmeta . " as `a` INNER JOIN " . $wpdb->posts . " as b ON a.post_id = b.ID WHERE a.meta_key = '_sage_sku' AND a.meta_value = '%s'", $sku ) );
 
       return $post_title;
     }
