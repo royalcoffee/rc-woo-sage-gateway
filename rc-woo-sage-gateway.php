@@ -158,7 +158,7 @@ function woocommerce_sage_gateway_init() {
 	   			case 'fre' :
 				   // check that freight information is set in the session
 				   if ( isset( $_SESSION['rc_freight'] ) ) {
-					 $freight_info['ship_status'] = 'Y';
+					 $freight_info['freight']['ship_status'] = 'Y';
 					 $freight_info['freight']['shipping_cost'] = ( array_key_exists( 'freight_amount', $_SESSION['rc_freight'] ) ? $_SESSION['rc_freight']['freight_amount'] : null );
 					 $freight_info['freight']['quote_number'] = ( array_key_exists( 'quote_number', $_SESSION['rc_freight'] ) ? $_SESSION['rc_freight']['quote_number'] : null );
 					 $freight_info['freight']['shipment_id'] = ( array_key_exists( 'shipment_id', $_SESSION['rc_freight'] ) ? $_SESSION['rc_freight']['shipment_id'] : null );
