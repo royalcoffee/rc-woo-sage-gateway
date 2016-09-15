@@ -70,9 +70,6 @@ function woocommerce_sage_gateway_init() {
     		$this->$setting_key = $value;
     	}
 
-      // check for SSL
-      do_action( 'admin_notices', array( &$this, 'do_ssl_check' ) );
-
 		add_filter( 'woocommerce_credit_card_form_fields', array( $this, 'credit_card_form_fields' ), 10, 2 );
       // save settings
       if ( is_admin() ) {
