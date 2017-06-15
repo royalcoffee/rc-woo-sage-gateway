@@ -146,12 +146,26 @@ function woocommerce_sage_gateway_init() {
        $freight_info['comment']   = ( isset( $_POST['order_comments'] ) ? wc_clean( $_POST['order_comments'] ) : '' );
        $freight_info['carrier'] = null;
 
+if( function_exists('kickout') ) kickout( 'shippingg', $freight_info, $customer_order, $customer_order->get_shipping_methods(), WC()->session->get( 'chosen_shipping_methods' ), $_SESSION );
 	   foreach( $customer_order->get_shipping_methods() as $shipping_method ) :
 
 	   		switch ( substr( $shipping_method['method_id'], 0, 3) ){
 
+	   			case 'del' :
+	   				$freight_info['freight']['carrier'] = 'DEL';
+	   				$freight_info['freight']['shipping_cost'] = 0.0;
+					 $freight_info['freight']['ship_status'] = 'Y';
+	   				break;
 	   			case 'hol' :
+	   				$freight_info['freight']['carrier'] = null;
+	   				$freight_info['freight']['shipping_cost'] = 0.0;
+					 $freight_info['freight']['ship_status'] = 'Y';
+	   				break;
 	   			case 'wil' :
+	   				$freight_info['freight']['carrier'] = 'W C';
+	   				$freight_info['freight']['shipping_cost'] = 0.0;
+					 $freight_info['freight']['ship_status'] = 'Y';
+	   				break;
 	   			case 'fre' :
 				   // check that freight information is set in the session
 				   if ( isset( $_SESSION['rc_freight'] ) ) {
@@ -168,18 +182,15 @@ function woocommerce_sage_gateway_init() {
 	   				break;
 
 	   			case 'ups' :
-	   				$freight_info['ups']['service'] = $shipping_method['name'];
+	   				$freight_info['ups']['service'] = sprintf( '%s (%s)', strtoupper( $shipping_method['method_id'] ), $shipping_method['name'] );
 	   				$freight_info['ups']['shipping_cost'] = $shipping_method['cost'];
 	   				$freight_info['ship_status'] = 'Y';
 	   				break;
 
 	   		}
 
-
 	   endforeach;
 
-
-if( function_exists('kickout') ) kickout( 'process_payment', $_SESSION['rc_freight'], $customer_order, $freight_info, $customer_order->get_shipping_methods(), $_POST );
 
       /*************************************************************************
        * credit card info
