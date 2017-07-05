@@ -6,9 +6,13 @@ Version: 1.0
 Author: Sean Newby
 */
 
-//add_action( 'plugins_loaded', 'woocommerce_sage_gateway_init' );
+require 'vendor/autoload.php';
+
+use Inacho\CreditCard as CreditCard;
+
 add_action( 'init', 'woocommerce_sage_gateway_init' );
 function woocommerce_sage_gateway_init() {
+
   // check that WP_Payment_Gateway and SageHandler classes are loaded
   if ( ! class_exists( 'WC_Payment_Gateway' ) || ! class_exists( 'SageHandler' ) ) {
     return;
@@ -115,6 +119,8 @@ function woocommerce_sage_gateway_init() {
     public function process_payment( $order_id ) {
       global $woocommerce;
 
+        // https://github.com/inacho/php-credit-card-validator
+
       // get order information
       $customer_order = new WC_Order( $order_id );
 
@@ -204,9 +210,19 @@ if( function_exists('kickout') ) kickout( 'shippingg', $freight_info, $customer_
         return;
       }
       $credit_card_info['number'] = str_replace( array( ' ', '-' ), '', $_POST[$this->id . '-card-number'] );
-      if ( strlen( $credit_card_info['number'] ) !== 16 ) {
+
+      $creditcard = CreditCard::validCreditCard( $credit_card_info['number'] );
+if( function_exists('kickout') ) kickout( 'creditcard', $creditcard, $_POST );
+
+      if ( ! $creditcard['valid'] ) {
         // invalid credit card number
         wc_add_notice( __( 'Please enter a valid credit card number.', 'wc-sage-gateway' ), 'error' );
+        return;
+      }
+
+      if( ! in_array ( $creditcard['type'], array( 'visa', 'mastercard', 'amex' ) ) ){
+        // invalid credit card number
+        wc_add_notice( __( 'We are unable to process this type of credit card.', 'wc-sage-gateway' ), 'error' );
         return;
       }
 
@@ -216,6 +232,7 @@ if( function_exists('kickout') ) kickout( 'shippingg', $freight_info, $customer_
         wc_add_notice( __( 'Please enter your credit card expiry date.', 'wc-sage-gateway' ), 'error' );
         return;
       }
+
       $expiration = str_replace( array( ' ', '/' ), '', $_POST[$this->id . '-card-expiry'] );
       if ( strlen( $expiration ) !== 4 ) {
         // invalid expiry date
@@ -225,13 +242,11 @@ if( function_exists('kickout') ) kickout( 'shippingg', $freight_info, $customer_
       $credit_card_info['expiration_month'] = substr( $expiration, 0, 2 );
       $credit_card_info['expiration_year'] = '20' . substr( $expiration, 2 );
 
-      // name on card
-      if ( ! isset( $_POST['sage-card-name'] ) || empty( $_POST['sage-card-name'] ) ) {
-        // missing billing name
-        wc_add_notice( __( 'Please enter your name.', 'wc-sage-gateway' ), 'error' );
+      if ( ! CreditCard::validDate( $credit_card_info['expiration_year'], $credit_card_info['expiration_month'] ) ) {
+        // invalid expiry date
+        wc_add_notice( __( 'Please enter a valid credit card expiry date.', 'wc-sage-gateway' ), 'error' );
         return;
       }
-      $credit_card_info['name'] = $_POST['sage-card-name'];
 
       // cvc/cvv
       if ( ! isset( $_POST[$this->id . '-card-cvc'] ) || empty( $_POST[$this->id . '-card-cvc'] ) ) {
@@ -240,11 +255,19 @@ if( function_exists('kickout') ) kickout( 'shippingg', $freight_info, $customer_
         return;
       }
       $credit_card_info['cvv'] = $_POST[$this->id . '-card-cvc'];
-      if ( strlen( $credit_card_info['cvv'] ) !== 3 ) {
-        // invalud cvc
+      if ( ! CreditCard::validCvc( $credit_card_info['cvv'], $creditcard['type'] ) ) {
+        // invalid cvc
         wc_add_notice( __( 'Please enter a valid credit card cvc.', 'wc-sage-gateway' ), 'error' );
         return;
       }
+
+      // name on card
+      if ( ! isset( $_POST['sage-card-name'] ) || empty( $_POST['sage-card-name'] ) ) {
+        // missing billing name
+        wc_add_notice( __( 'Please enter your name.', 'wc-sage-gateway' ), 'error' );
+        return;
+      }
+      $credit_card_info['name'] = $_POST['sage-card-name'];
 
       /*************************************************************************
        * cart items

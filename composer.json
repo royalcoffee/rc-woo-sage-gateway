@@ -1,0 +1,16 @@
+{
+    "name": "transom/rc-woo-sage-gateway-git",
+    "description": "Connects WooCommerce to Sage 100 Payment gateway",
+    "type": "wordpress-plugin",
+    "require": {
+        "php": ">=5.3.2",
+        "composer/installers": "v1.0.6",
+        "inacho/php-credit-card-validator": "^1.0"
+    },
+    "authors": [
+        {
+            "name": "Tom Ransom",
+            "email": "transom@1bigidea.com"
+        }
+    ]
+}
